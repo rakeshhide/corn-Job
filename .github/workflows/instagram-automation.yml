@@ -2,7 +2,7 @@ name: Instagram Automation
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '0 * * * *'   # Run once per hour, at :00
   workflow_dispatch:
 
 jobs:
@@ -10,33 +10,56 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger APIs based on time conditions
+        env:
+          BASE_URL: ${{ secrets.AUTOMATION_BASE_URL }}
         run: |
           HOUR=$(date -u +%H)
           DAY=$(date -u +%d)
-          
-          echo "Current Day: $DAY"
-          echo "Current Hour: $HOUR"
-          
-          # Comments API: Run every 3 hours (00, 03, 06, 09, 12, 15, 18, 21)
-          if [ "$HOUR" = "00" ] || [ "$HOUR" = "03" ] || [ "$HOUR" = "06" ] || [ "$HOUR" = "09" ] || [ "$HOUR" = "12" ] || [ "$HOUR" = "15" ] || [ "$HOUR" = "18" ] || [ "$HOUR" = "21" ]; then
-            echo "Calling Comments API..."
-            curl -m 600 "https://instagram-automation-g7b4.onrender.com/api/v1/trigger/comments"
-          fi
-          
-          # Feed Image API: Run every 12 hours (00, 12)
-          if [ "$HOUR" = "00" ] || [ "$HOUR" = "12" ]; then
-            echo "Calling Feed Image API..."
-            curl -m 600 "https://instagram-automation-g7b4.onrender.com/api/v1/trigger/feed/image"
-          fi
-          
-          # Story Image API: Run daily at 00:00 UTC
-          if [ "$HOUR" = "00" ]; then
-            echo "Calling Story Image API..."
-            curl -m 600 "https://instagram-automation-g7b4.onrender.com/api/v1/trigger/story/image"
-          fi
-          
-          # Story Video API: Run monthly on 1st day at 00:00 UTC
-          if [ "$DAY" = "01" ] && [ "$HOUR" = "00" ]; then
-            echo "Calling Story Video API..."
-            curl -m 600 "https://instagram-automation-g7b4.onrender.com/api/v1/trigger/story/video"
+
+          echo "Current Day: $DAY, Hour: $HOUR"
+
+          call_api_with_retry() {
+            local endpoint="$1"
+            local api_name="$2"
+            local max_attempts=3
+            local attempt=1
+
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt for $api_name..."
+              local status_code=$(curl -s -w "%{http_code}" -o /dev/null -m 300 "$endpoint")
+
+              if [ "$status_code" = "200" ]; then
+                echo "$api_name SUCCESS"
+                return 0
+              else
+                echo "$api_name failed with status: $status_code"
+                [ $attempt -lt $max_attempts ] && sleep 60
+              fi
+              attempt=$((attempt + 1))
+            done
+
+            echo "$api_name FAILED after $max_attempts attempts"
+            return 1
+          }
+
+          # Story Video: Monthly on 1st at 03 (must come before Comments check)
+          if [ "$DAY" = "01" ] && [ "$HOUR" = "03" ]; then
+            call_api_with_retry "$BASE_URL/api/v1/trigger/story/video" "Story Video" || exit 1
+
+          # Comments: Every 3 hours
+          elif [ "$HOUR" = "00" ] || [ "$HOUR" = "03" ] || [ "$HOUR" = "06" ] || \
+               [ "$HOUR" = "09" ] || [ "$HOUR" = "12" ] || [ "$HOUR" = "15" ] || \
+               [ "$HOUR" = "18" ] || [ "$HOUR" = "21" ]; then
+            call_api_with_retry "$BASE_URL/api/v1/trigger/comments" "Comments" || exit 1
+
+          # Feed Image: 01 and 13
+          elif [ "$HOUR" = "01" ] || [ "$HOUR" = "13" ]; then
+            call_api_with_retry "$BASE_URL/api/v1/trigger/feed/image" "Feed Image" || exit 1
+
+          # Story Image: Daily at 02
+          elif [ "$HOUR" = "02" ]; then
+            call_api_with_retry "$BASE_URL/api/v1/trigger/story/image" "Story Image" || exit 1
+
+          else
+            echo "No task scheduled for hour $HOUR"
           fi
