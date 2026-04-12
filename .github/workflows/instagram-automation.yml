@@ -1,65 +1,81 @@
-name: Instagram Automation
-
-on:
-  schedule:
-    - cron: '0 * * * *'   # Run once per hour, at :00
-  workflow_dispatch:
-
-jobs:
-  trigger-automation:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger APIs based on time conditions
+- name: Trigger APIs based on time conditions
         env:
-          BASE_URL: ${{ secrets.AUTOMATION_BASE_URL }}
+          BASE_URL: "https://instagram-automation-g7b4.onrender.com"  # ✅ hardcoded
         run: |
+          set -euo pipefail
+
           HOUR=$(date -u +%H)
           DAY=$(date -u +%d)
 
-          echo "Current Day: $DAY, Hour: $HOUR"
+          echo "========================================"
+          echo "  Instagram Automation Triggered"
+          echo "  UTC Time  -> Day: $DAY | Hour: $HOUR"
+          echo "========================================"
 
+          # ── Reusable retry function ───────────────────────────────────
           call_api_with_retry() {
             local endpoint="$1"
             local api_name="$2"
             local max_attempts=3
             local attempt=1
+            local status_code
+
+            echo ""
+            echo ">>> Running: $api_name"
+            echo "    URL: $endpoint"
 
             while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt for $api_name..."
-              local status_code=$(curl -s -w "%{http_code}" -o /dev/null -m 300 "$endpoint")
+              echo "    Attempt $attempt / $max_attempts ..."
+
+              status_code=$(curl -s -w "%{http_code}" -o /dev/null -m 300 "$endpoint")
+
+              echo "    Response Status: $status_code"
 
               if [ "$status_code" = "200" ]; then
-                echo "$api_name SUCCESS"
+                echo "    ✅ $api_name SUCCESS"
                 return 0
               else
-                echo "$api_name failed with status: $status_code"
-                [ $attempt -lt $max_attempts ] && sleep 60
+                echo "    ❌ $api_name failed (status: $status_code)"
+                if [ $attempt -lt $max_attempts ]; then
+                  echo "    Waiting 60s before retry..."
+                  sleep 60
+                fi
               fi
+
               attempt=$((attempt + 1))
             done
 
-            echo "$api_name FAILED after $max_attempts attempts"
+            echo ""
+            echo "    🚨 $api_name FAILED after $max_attempts attempts"
             return 1
           }
 
-          # Story Video: Monthly on 1st at 03 (must come before Comments check)
-          if [ "$DAY" = "01" ] && [ "$HOUR" = "03" ]; then
-            call_api_with_retry "$BASE_URL/api/v1/trigger/story/video" "Story Video" || exit 1
+          # ── Scheduling logic (priority order) ────────────────────────
 
-          # Comments: Every 3 hours
+          # 1. Story Video — Monthly: 1st day at 03:00 UTC
+          if [ "$DAY" = "01" ] && [ "$HOUR" = "03" ]; then
+            call_api_with_retry "${BASE_URL}/api/v1/trigger/story/video" "Story Video" || exit 1
+
+          # 2. Comments — Every 3 hours: 00 03 06 09 12 15 18 21
           elif [ "$HOUR" = "00" ] || [ "$HOUR" = "03" ] || [ "$HOUR" = "06" ] || \
                [ "$HOUR" = "09" ] || [ "$HOUR" = "12" ] || [ "$HOUR" = "15" ] || \
                [ "$HOUR" = "18" ] || [ "$HOUR" = "21" ]; then
-            call_api_with_retry "$BASE_URL/api/v1/trigger/comments" "Comments" || exit 1
+            call_api_with_retry "${BASE_URL}/api/v1/trigger/comments" "Comments" || exit 1
 
-          # Feed Image: 01 and 13
+          # 3. Feed Image — Daily at 01:00 and 13:00 UTC
           elif [ "$HOUR" = "01" ] || [ "$HOUR" = "13" ]; then
-            call_api_with_retry "$BASE_URL/api/v1/trigger/feed/image" "Feed Image" || exit 1
+            call_api_with_retry "${BASE_URL}/api/v1/trigger/feed/image" "Feed Image" || exit 1
 
-          # Story Image: Daily at 02
+          # 4. Story Image — Daily at 02:00 UTC
           elif [ "$HOUR" = "02" ]; then
-            call_api_with_retry "$BASE_URL/api/v1/trigger/story/image" "Story Image" || exit 1
+            call_api_with_retry "${BASE_URL}/api/v1/trigger/story/image" "Story Image" || exit 1
 
           else
-            echo "No task scheduled for hour $HOUR"
+            echo ""
+            echo "⏭  No task scheduled for Hour: $HOUR — skipping."
           fi
+
+          echo ""
+          echo "========================================"
+          echo "  Job Complete"
+          echo "========================================"
