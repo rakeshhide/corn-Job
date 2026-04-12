@@ -1,6 +1,18 @@
-- name: Trigger APIs based on time conditions
+name: Instagram Automation
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-automation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Trigger APIs based on time conditions
         env:
-          BASE_URL: "https://instagram-automation-g7b4.onrender.com"  # ✅ hardcoded
+          BASE_URL: "https://instagram-automation-g7b4.onrender.com"
         run: |
           set -euo pipefail
 
