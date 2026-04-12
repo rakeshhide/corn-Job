@@ -1,0 +1,42 @@
+name: Instagram Automation
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-automation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger APIs based on time conditions
+        run: |
+          HOUR=$(date -u +%H)
+          DAY=$(date -u +%d)
+          
+          echo "Current Day: $DAY"
+          echo "Current Hour: $HOUR"
+          
+          # Comments API: Run every 3 hours (00, 03, 06, 09, 12, 15, 18, 21)
+          if [ "$HOUR" = "00" ] || [ "$HOUR" = "03" ] || [ "$HOUR" = "06" ] || [ "$HOUR" = "09" ] || [ "$HOUR" = "12" ] || [ "$HOUR" = "15" ] || [ "$HOUR" = "18" ] || [ "$HOUR" = "21" ]; then
+            echo "Calling Comments API..."
+            curl -m 600 "https://instagram-automation-g7b4.onrender.com/api/v1/trigger/comments"
+          fi
+          
+          # Feed Image API: Run every 12 hours (00, 12)
+          if [ "$HOUR" = "00" ] || [ "$HOUR" = "12" ]; then
+            echo "Calling Feed Image API..."
+            curl -m 600 "https://instagram-automation-g7b4.onrender.com/api/v1/trigger/feed/image"
+          fi
+          
+          # Story Image API: Run daily at 00:00 UTC
+          if [ "$HOUR" = "00" ]; then
+            echo "Calling Story Image API..."
+            curl -m 600 "https://instagram-automation-g7b4.onrender.com/api/v1/trigger/story/image"
+          fi
+          
+          # Story Video API: Run monthly on 1st day at 00:00 UTC
+          if [ "$DAY" = "01" ] && [ "$HOUR" = "00" ]; then
+            echo "Calling Story Video API..."
+            curl -m 600 "https://instagram-automation-g7b4.onrender.com/api/v1/trigger/story/video"
+          fi
