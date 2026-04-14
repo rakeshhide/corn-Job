@@ -1,16 +1,22 @@
 name: Instagram Automation
 on:
   schedule:
-    # Comments → every 3 hours IST (00,03,06,09,12,15,18,21 IST = 18:30,21:30,00:30,03:30... prev day UTC)
-    # Easiest: run at UTC 18,21,0,3,6,9,12,15 (= IST 23:30,2:30,5:30,8:30,11:30,14:30,17:30,20:30)
-    # Better approach: fix cron to exact IST hours minus 5:30
-    - cron: '30 18,21,0,3,6,9,12,15 * * *'  # = IST 00,03,06,09,12,15,18,21
-    # Feed Image → IST 01:00 & 13:00 = UTC 19:30 & 07:30
-    - cron: '30 19,7 * * *'
-    # Story Image → IST 02:00 = UTC 20:30
-    - cron: '30 20 * * *'
-    # Story Video → 1st of month IST 03:00 = UTC 21:30
-    - cron: '30 21 1 * *'
+    # Comments - har 3 ghante IST (UTC mein offset)
+    - cron: '30 2 * * *'    # IST 08:00
+    - cron: '30 5 * * *'    # IST 11:00
+    - cron: '30 8 * * *'    # IST 14:00
+    - cron: '30 11 * * *'   # IST 17:00
+    - cron: '30 14 * * *'   # IST 20:00
+    - cron: '30 15 * * *'   # IST 21:00 ✅ Comments
+    - cron: '30 18 * * *'   # IST 00:00
+    - cron: '30 21 * * *'   # IST 03:00
+    # Feed Image
+    - cron: '30 19 * * *'   # IST 01:00
+    - cron: '30 7 * * *'    # IST 13:00
+    # Story Image
+    - cron: '30 20 * * *'   # IST 02:00
+    # Story Video
+    - cron: '30 21 1 * *'   # IST 03:00, 1st of month
   workflow_dispatch:
 
 jobs:
