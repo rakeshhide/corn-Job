@@ -2,30 +2,25 @@ name: Instagram Automation
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # 🔥 TEST: every 5 minutes
+    - cron: '* * * * *'   # 🔥 TEST MODE (every 1 min)
 
-    - cron: '0 */3 * * *'   # every 3 hours
-    - cron: '0 */6 * * *'   # every 6 hours
-    - cron: '0 0 * * *'     # daily
-    - cron: '0 0 * * 0'     # weekly
-    - cron: '0 0 1 * *'     # monthly
+    # ===== PRODUCTION (baad me enable karna) =====
+    # - cron: '0 */3 * * *'   # comments every 3 hours
+    # - cron: '0 */6 * * *'   # feed every 6 hours
+    # - cron: '0 0 * * *'     # story daily
+    # - cron: '0 0 * * 0'     # reel weekly
+    # - cron: '0 0 1 * *'     # story reel monthly
 
   workflow_dispatch:
 
 jobs:
   run-cron:
     runs-on: ubuntu-latest
+
     steps:
       - name: Run automation
         run: |
-          echo "Starting job..."
-
-          HOUR=$(date -u +%H)
-          MIN=$(date -u +%M)
-          DAY=$(date -u +%d)
-          WEEKDAY=$(date -u +%u)
-
-          echo "UTC Time -> Hour: $HOUR | Min: $MIN | Day: $DAY | Weekday: $WEEKDAY"
+          echo "🚀 Starting job..."
 
           BASE_URL="https://instagram-automation-g7b4.onrender.com"
 
@@ -33,50 +28,63 @@ jobs:
             URL=$1
             NAME=$2
 
-            for i in 1 2 3; do
-              echo "Attempt $i for $NAME"
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 300 $URL)
+            for i in 1 2 3
+            do
+              echo "👉 Attempt $i for $NAME"
+
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "$URL")
 
               if [ "$STATUS" = "200" ]; then
-                echo "✅ $NAME success"
+                echo "✅ $NAME SUCCESS"
                 return
               fi
 
-              echo "Retrying..."
-              sleep 60
+              echo "❌ Retry after 10 sec..."
+              sleep 10
             done
 
-            echo "❌ $NAME failed"
+            echo "🚨 $NAME FAILED after 3 attempts"
           }
 
-          # 🔥 TEST BLOCK (har 5 min run hoga)
-          if [ $((10#$MIN % 5)) -eq 0 ]; then
-            call_api "$BASE_URL/api/v1/trigger/comments" "TEST Comments"
-          fi
+          # =========================
+          # 🔥 TEST MODE (always run)
+          # =========================
+          echo "🧪 TEST MODE RUNNING..."
+          call_api "$BASE_URL/api/v1/trigger/comments" "TEST Comments"
+
+          # =========================
+          # 🎯 PRODUCTION LOGIC
+          # =========================
+
+          HOUR=$(date -u +%H)
+          DAY=$(date -u +%d)
+          WEEKDAY=$(date -u +%u)
+
+          echo "⏰ Time -> Hour: $HOUR | Day: $DAY | Weekday: $WEEKDAY"
 
           # COMMENTS every 3 hours
-          if [ $((10#$HOUR % 3)) -eq 0 ] && [ "$MIN" = "00" ]; then
+          if [ $((10#$HOUR % 3)) -eq 0 ]; then
             call_api "$BASE_URL/api/v1/trigger/comments" "Comments"
           fi
 
           # FEED every 6 hours
-          if [ $((10#$HOUR % 6)) -eq 0 ] && [ "$MIN" = "00" ]; then
-            call_api "$BASE_URL/api/v1/trigger/feed/image" "Feed"
+          if [ $((10#$HOUR % 6)) -eq 0 ]; then
+            call_api "$BASE_URL/api/v1/trigger/feed/image" "Feed Image"
           fi
 
           # STORY daily
-          if [ "$HOUR" = "00" ] && [ "$MIN" = "00" ]; then
-            call_api "$BASE_URL/api/v1/trigger/story/image" "Story"
+          if [ "$HOUR" = "00" ]; then
+            call_api "$BASE_URL/api/v1/trigger/story/image" "Story Image"
           fi
 
           # WEEKLY reel (Sunday)
-          if [ "$WEEKDAY" = "7" ] && [ "$HOUR" = "00" ] && [ "$MIN" = "00" ]; then
+          if [ "$WEEKDAY" = "7" ] && [ "$HOUR" = "00" ]; then
             call_api "$BASE_URL/api/v1/trigger/reel" "Reel"
           fi
 
           # MONTHLY story reel
-          if [ "$DAY" = "01" ] && [ "$HOUR" = "00" ] && [ "$MIN" = "00" ]; then
+          if [ "$DAY" = "01" ] && [ "$HOUR" = "00" ]; then
             call_api "$BASE_URL/api/v1/trigger/story/reel" "Story Reel"
           fi
 
-          echo "Done"
+          echo "✅ Job Finished"
