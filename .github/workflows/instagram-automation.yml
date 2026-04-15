@@ -2,11 +2,14 @@ name: Instagram Automation
 
 on:
   schedule:
+    - cron: '*/5 * * * *'   # 🔥 TEST: every 5 minutes
+
     - cron: '0 */3 * * *'   # every 3 hours
     - cron: '0 */6 * * *'   # every 6 hours
     - cron: '0 0 * * *'     # daily
     - cron: '0 0 * * 0'     # weekly
     - cron: '0 0 1 * *'     # monthly
+
   workflow_dispatch:
 
 jobs:
@@ -18,10 +21,11 @@ jobs:
           echo "Starting job..."
 
           HOUR=$(date -u +%H)
+          MIN=$(date -u +%M)
           DAY=$(date -u +%d)
           WEEKDAY=$(date -u +%u)
 
-          echo "UTC Hour: $HOUR | Day: $DAY | Weekday: $WEEKDAY"
+          echo "UTC Time -> Hour: $HOUR | Min: $MIN | Day: $DAY | Weekday: $WEEKDAY"
 
           BASE_URL="https://instagram-automation-g7b4.onrender.com"
 
@@ -45,28 +49,33 @@ jobs:
             echo "❌ $NAME failed"
           }
 
+          # 🔥 TEST BLOCK (har 5 min run hoga)
+          if [ $((10#$MIN % 5)) -eq 0 ]; then
+            call_api "$BASE_URL/api/v1/trigger/comments" "TEST Comments"
+          fi
+
           # COMMENTS every 3 hours
-          if [ $((10#$HOUR % 3)) -eq 0 ]; then
+          if [ $((10#$HOUR % 3)) -eq 0 ] && [ "$MIN" = "00" ]; then
             call_api "$BASE_URL/api/v1/trigger/comments" "Comments"
           fi
 
           # FEED every 6 hours
-          if [ $((10#$HOUR % 6)) -eq 0 ]; then
+          if [ $((10#$HOUR % 6)) -eq 0 ] && [ "$MIN" = "00" ]; then
             call_api "$BASE_URL/api/v1/trigger/feed/image" "Feed"
           fi
 
           # STORY daily
-          if [ "$HOUR" = "00" ]; then
+          if [ "$HOUR" = "00" ] && [ "$MIN" = "00" ]; then
             call_api "$BASE_URL/api/v1/trigger/story/image" "Story"
           fi
 
           # WEEKLY reel (Sunday)
-          if [ "$WEEKDAY" = "7" ] && [ "$HOUR" = "00" ]; then
+          if [ "$WEEKDAY" = "7" ] && [ "$HOUR" = "00" ] && [ "$MIN" = "00" ]; then
             call_api "$BASE_URL/api/v1/trigger/reel" "Reel"
           fi
 
           # MONTHLY story reel
-          if [ "$DAY" = "01" ] && [ "$HOUR" = "00" ]; then
+          if [ "$DAY" = "01" ] && [ "$HOUR" = "00" ] && [ "$MIN" = "00" ]; then
             call_api "$BASE_URL/api/v1/trigger/story/reel" "Story Reel"
           fi
 
