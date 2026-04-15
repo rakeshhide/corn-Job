@@ -1,80 +1,73 @@
 name: Instagram Automation
+
 on:
   schedule:
-    # Comments - har 3 ghante IST (UTC mein offset)
-    - cron: '30 2 * * *'    # IST 08:00
-    - cron: '30 5 * * *'    # IST 11:00
-    - cron: '30 8 * * *'    # IST 14:00
-    - cron: '30 11 * * *'   # IST 17:00
-    - cron: '30 14 * * *'   # IST 20:00
-    - cron: '30 15 * * *'   # IST 21:00 ✅ Comments
-    - cron: '30 18 * * *'   # IST 00:00
-    - cron: '30 21 * * *'   # IST 03:00
-    # Feed Image
-    - cron: '30 19 * * *'   # IST 01:00
-    - cron: '30 7 * * *'    # IST 13:00
-    # Story Image
-    - cron: '30 20 * * *'   # IST 02:00
-    # Story Video
-    - cron: '30 21 1 * *'   # IST 03:00, 1st of month
+    - cron: '0 */3 * * *'   # every 3 hours
+    - cron: '0 */6 * * *'   # every 6 hours
+    - cron: '0 0 * * *'     # daily
+    - cron: '0 0 * * 0'     # weekly
+    - cron: '0 0 1 * *'     # monthly
   workflow_dispatch:
 
 jobs:
-  trigger-automation:
+  run-cron:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Trigger APIs
-        env:
-          BASE_URL: "https://instagram-automation-g7b4.onrender.com"
+      - name: Run automation
         run: |
-          set -euo pipefail
-          IST_HOUR=$(TZ="Asia/Kolkata" date +%H)
-          IST_MIN=$(TZ="Asia/Kolkata" date +%M)
-          IST_DAY=$(TZ="Asia/Kolkata" date +%d)
-          echo "IST Time -> Day: $IST_DAY | Hour: $IST_HOUR | Min: $IST_MIN"
+          echo "Starting job..."
 
-          call_api_with_retry() {
-            local endpoint="$1"
-            local name="$2"
-            local max=3
-            local attempt=1
-            local status
-            echo ">>> Running: $name"
-            while [ $attempt -le $max ]; do
-              echo "Attempt $attempt..."
-              status=$(curl -s -w "%{http_code}" -o /dev/null -m 300 "$endpoint")
-              echo "Status: $status"
-              if [ "$status" = "200" ]; then
-                echo "✅ $name SUCCESS"
-                return 0
+          HOUR=$(date -u +%H)
+          DAY=$(date -u +%d)
+          WEEKDAY=$(date -u +%u)
+
+          echo "UTC Hour: $HOUR | Day: $DAY | Weekday: $WEEKDAY"
+
+          BASE_URL="https://instagram-automation-g7b4.onrender.com"
+
+          call_api () {
+            URL=$1
+            NAME=$2
+
+            for i in 1 2 3; do
+              echo "Attempt $i for $NAME"
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 300 $URL)
+
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ $NAME success"
+                return
               fi
-              echo "❌ Failed attempt $attempt"
+
+              echo "Retrying..."
               sleep 60
-              attempt=$((attempt+1))
             done
-            echo "🚨 $name FAILED"
-            return 1
+
+            echo "❌ $NAME failed"
           }
 
-          # Story Video (1st of month, IST 03:xx)
-          if [ "$IST_DAY" = "01" ] && [ "$IST_HOUR" = "03" ]; then
-            call_api_with_retry "$BASE_URL/api/v1/trigger/story/video" "Story Video"
+          # COMMENTS every 3 hours
+          if [ $((10#$HOUR % 3)) -eq 0 ]; then
+            call_api "$BASE_URL/api/v1/trigger/comments" "Comments"
           fi
 
-          # Comments (IST 00,03,06,09,12,15,18,21)
-          if [[ "$IST_HOUR" =~ ^(00|03|06|09|12|15|18|21)$ ]]; then
-            call_api_with_retry "$BASE_URL/api/v1/trigger/comments" "Comments"
+          # FEED every 6 hours
+          if [ $((10#$HOUR % 6)) -eq 0 ]; then
+            call_api "$BASE_URL/api/v1/trigger/feed/image" "Feed"
           fi
 
-          # Feed Image (IST 01 or 13)
-          if [[ "$IST_HOUR" = "01" || "$IST_HOUR" = "13" ]]; then
-            call_api_with_retry "$BASE_URL/api/v1/trigger/feed/image" "Feed Image"
+          # STORY daily
+          if [ "$HOUR" = "00" ]; then
+            call_api "$BASE_URL/api/v1/trigger/story/image" "Story"
           fi
 
-          # Story Image (IST 02)
-          if [ "$IST_HOUR" = "02" ]; then
-            call_api_with_retry "$BASE_URL/api/v1/trigger/story/image" "Story Image"
+          # WEEKLY reel (Sunday)
+          if [ "$WEEKDAY" = "7" ] && [ "$HOUR" = "00" ]; then
+            call_api "$BASE_URL/api/v1/trigger/reel" "Reel"
           fi
 
-          echo "Job Complete"
+          # MONTHLY story reel
+          if [ "$DAY" = "01" ] && [ "$HOUR" = "00" ]; then
+            call_api "$BASE_URL/api/v1/trigger/story/reel" "Story Reel"
+          fi
+
+          echo "Done"
